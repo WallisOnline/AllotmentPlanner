@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Dean's Allotment Planner</title>
+<style>
+:root{
+  --green:#0284c7;--dark:#0c1a2e;--accent:#38bdf8;--bg:#f0f7ff;
+  --card:#ffffff;--text:#1e293b;--muted:#64748b;--border:#bae6fd;
+  --indoor:#fff3cd;--outdoor:#dcfce7;--repot:#fce4ec;--harvest:#d1fae5;--transplant:#e0e7ff;
+  --radius:12px;
+  --nav:#0f2744;--hdr1:#0c1a2e;--hdr2:#0369a1;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);}
+
+/* WEATHER STRIP */
+#wx-strip{color:#fff;}
+#wx-strip .wx-inner{display:inline-flex;gap:0.8rem;align-items:center;}
+.wx-day{display:inline-flex;flex-direction:column;align-items:center;min-width:72px;background:rgba(255,255,255,0.1);border-radius:8px;padding:0.4rem 0.7rem;font-size:0.78rem;border:1px solid rgba(255,255,255,0.12);}
+.wx-day.today{background:rgba(56,189,248,0.25);border:1px solid var(--accent);}
+.wx-day .wx-name{font-weight:bold;font-size:0.75rem;color:#7dd3fc;}
+.wx-day .wx-icon{font-size:1.5rem;line-height:1.2;}
+.wx-day .wx-temp{font-weight:bold;font-size:0.85rem;}
+.wx-day .wx-rain{color:#90caf9;font-size:0.72rem;}
+.wx-day .wx-wind{color:#b0bec5;font-size:0.72rem;}
+#wx-status{display:inline-block;font-size:0.8rem;color:#a8dbb0;padding:0 0.5rem;}
+.wx-warn{background:#b71c1c;color:#fff;padding:0.2rem 0.6rem;border-radius:12px;font-size:0.75rem;font-weight:bold;margin-left:0.5rem;}
+
+/* HEADER */
+header{background:linear-gradient(135deg,#0c1a2e 0%,#0369a1 60%,#0ea5e9 100%);color:#fff;padding:1.4rem 1.8rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;box-shadow:0 4px 20px rgba(3,105,161,0.3);}
+header h1{font-size:1.7rem;font-weight:800;letter-spacing:-0.03em;}
+header p{font-size:0.85rem;opacity:0.85;}
+
+/* NAV */
+nav{background:var(--nav);display:flex;flex-wrap:wrap;border-bottom:3px solid var(--accent);box-shadow:0 2px 8px rgba(0,0,0,0.2);}
+nav button{background:none;border:none;color:#bae6fd;padding:0.75rem 1.3rem;cursor:pointer;font-size:0.9rem;font-weight:500;transition:all 0.2s;border-right:1px solid rgba(255,255,255,0.07);letter-spacing:0.02em;}
+nav button:hover,nav button.active{background:var(--green);color:#fff;box-shadow:inset 0 -3px 0 var(--accent);}
+
+/* SECTIONS */
+.section{display:none;padding:1.8rem;}
+.section.active{display:block;}
+h2{color:#0c1a2e;margin-bottom:0.3rem;font-size:1.4rem;font-weight:700;letter-spacing:-0.02em;}
+.subtitle{color:var(--muted);font-size:0.88rem;margin-bottom:1rem;}
+
+/* LEGEND */
+.legend{display:flex;flex-wrap:wrap;gap:0.4rem;margin:0.8rem 0;}
+.leg{padding:0.25rem 0.7rem;border-radius:20px;font-size:0.78rem;font-weight:bold;}
+.leg.i{background:var(--indoor);color:#856404;}
+.leg.o{background:#dcfce7;color:#14532d;}
+.leg.r{background:var(--repot);color:#880e4f;}
+.leg.h{background:var(--harvest);color:#155724;}
+.leg.t{background:var(--transplant);color:#4a148c;}
+
+/* MONTH GUIDE */
+.months-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem;margin-top:0.5rem;}
+.month-card{background:var(--card);border-radius:var(--radius);box-shadow:0 4px 16px rgba(3,105,161,0.1);overflow:hidden;}
+.month-card .mh{padding:0.7rem 1rem;font-weight:700;font-size:0.95rem;color:#fff;background:linear-gradient(90deg,#0369a1,#0ea5e9);}
+.month-card.current-month .mh{background:linear-gradient(90deg,#f59e0b,#fbbf24);color:#000;}
+.month-card .mh small{font-weight:normal;font-size:0.78rem;opacity:0.85;margin-left:0.4rem;}
+.month-card table{width:100%;border-collapse:collapse;font-size:0.8rem;}
+.month-card td{padding:0.35rem 0.7rem;border-bottom:1px solid var(--border);}
+.month-card td:first-child{font-weight:600;width:45%;}
+.month-card tr:last-child td{border-bottom:none;}
+.badge{display:inline-block;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.72rem;font-weight:bold;margin:1px;}
+.badge.i{background:var(--indoor);color:#856404;}
+.badge.o{background:#dcfce7;color:#14532d;}
+.badge.r{background:var(--repot);color:#880e4f;}
+.badge.h{background:var(--harvest);color:#155724;}
+.badge.t{background:var(--transplant);color:#4a148c;}
+.badge.gh{background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7;}
+
+/* CROP GUIDE */
+.filter-bar{display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;}
+.filter-btn{padding:0.35rem 0.9rem;border-radius:20px;border:2px solid var(--border);background:#fff;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.2s;}
+.filter-btn.active,.filter-btn:hover{background:var(--green);color:#fff;border-color:var(--green);box-shadow:0 2px 8px rgba(2,132,199,0.3);}
+.crops-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1rem;}
+.crop-card{background:var(--card);border-radius:var(--radius);box-shadow:0 4px 16px rgba(3,105,161,0.1);overflow:hidden;border-top:4px solid var(--green);transition:transform 0.15s,box-shadow 0.15s;}
+.crop-card[data-cat="roots"]{border-top-color:#e65100;}
+.crop-card[data-cat="salads"]{border-top-color:#00838f;}
+.crop-card[data-cat="legumes"]{border-top-color:#6a1b9a;}
+.crop-card[data-cat="brassicas"]{border-top-color:#283593;}
+.crop-card[data-cat="herbs"]{border-top-color:#558b2f;}
+.crop-card[data-cat="alliums"]{border-top-color:#ad1457;}
+.crop-header{padding:0.7rem 1rem 0.4rem;display:flex;justify-content:space-between;align-items:flex-start;}
+.crop-header h3{font-size:1rem;color:var(--dark);}
+.crop-cat{font-size:0.72rem;padding:0.15rem 0.5rem;border-radius:10px;background:var(--light-green);color:var(--green);font-weight:bold;background:#e8f5e9;border:1px solid #c8e6c9;}
+.crop-body{padding:0 1rem 0.7rem;font-size:0.82rem;}
+.crop-row{display:flex;gap:0.5rem;margin:0.25rem 0;align-items:flex-start;}
+.crop-label{min-width:110px;color:var(--muted);font-size:0.78rem;}
+.month-bar{display:flex;gap:2px;margin:0.5rem 0 0.2rem;}
+.mb-cell{flex:1;height:14px;border-radius:3px;background:#eee;position:relative;}
+.mb-cell.mbi{background:#ffc107;}
+.mb-cell.mbo{background:#4dd0e1;}
+.mb-cell.mbr{background:#f06292;}
+.mb-cell.mbh{background:#66bb6a;}
+.mb-cell.mbt{background:#ce93d8;}
+.mb-cell.mbgh{background:#a5d6a7;border:1px solid #4caf50;}
+.mb-labels{display:flex;gap:2px;margin-bottom:0.4rem;}
+.mb-labels span{flex:1;font-size:0.6rem;color:var(--muted);text-align:center;}
+
+/* GANTT */
+.gantt-wrap{overflow-x:auto;margin-top:0.5rem;}
+#gantt-table{border-collapse:collapse;min-width:1100px;font-size:0.7rem;}
+#gantt-table th,#gantt-table td{border:1px solid #ddd;padding:2px 4px;text-align:center;white-space:nowrap;}
+#gantt-table thead tr:first-child th{background:#0c1a2e;color:#fff;font-size:0.75rem;}
+#gantt-table thead tr:last-child th{background:#0369a1;color:#fff;}
+#gantt-table td:first-child{text-align:left;background:#f0f9ff;font-weight:600;min-width:140px;position:sticky;left:0;z-index:1;}
+#gantt-table thead th:first-child{position:sticky;left:0;z-index:2;background:var(--dark);}
+.gi{background:#fff3cd;} .go{background:#d1ecf1;} .gr{background:#fce4ec;}
+.gh-cell{background:#e8f5e9;} .gt{background:#e8d5f5;}
+.gcw{outline:3px solid var(--accent) !important;}
+
+/* CHECKLIST */
+.checklist-months{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1rem;}
+.cl-card{background:var(--card);border-radius:var(--radius);box-shadow:0 2px 6px rgba(0,0,0,0.07);overflow:hidden;}
+.cl-card.current-month{box-shadow:0 0 0 3px #f59e0b;}
+.cl-header{padding:0.7rem 1rem;background:linear-gradient(90deg,#0369a1,#0ea5e9);color:#fff;font-weight:700;font-size:0.9rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;}
+.cl-card.current-month .cl-header{background:linear-gradient(90deg,#f59e0b,#fbbf24);color:#000;}
+.cl-body{padding:0.7rem 1rem;display:none;}
+.cl-card.current-month .cl-body,.cl-body.open{display:block;}
+.cl-section-title{font-size:0.78rem;font-weight:bold;color:var(--muted);margin:0.5rem 0 0.3rem;text-transform:uppercase;letter-spacing:0.05em;}
+.cl-item{display:flex;align-items:flex-start;gap:0.5rem;margin:0.25rem 0;font-size:0.83rem;cursor:pointer;}
+.cl-item input[type=checkbox]{margin-top:2px;cursor:pointer;accent-color:var(--green);}
+.cl-item.done span{text-decoration:line-through;color:var(--muted);}
+
+/* TIPS */
+.tips-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-top:0.5rem;}
+.tip-card{background:var(--card);border-radius:var(--radius);padding:1rem 1.2rem;box-shadow:0 4px 16px rgba(3,105,161,0.1);border-left:5px solid var(--green);}
+.tip-card h4{color:var(--green);margin-bottom:0.4rem;font-size:0.95rem;}
+.tip-card p{font-size:0.84rem;line-height:1.55;}
+
+footer{text-align:center;padding:1.5rem;font-size:0.78rem;color:var(--muted);margin-top:2rem;}
+
+/* Modern enhancements */
+.crop-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(3,105,161,0.18);}
+.month-card:hover{box-shadow:0 6px 20px rgba(3,105,161,0.15);}
+.tip-card:hover{box-shadow:0 6px 20px rgba(3,105,161,0.15);}
+.section.active{animation:fadeIn 0.2s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+header h1 span.leaf{display:inline-block;animation:sway 3s ease-in-out infinite;}
+@keyframes sway{0%,100%{transform:rotate(-5deg);}50%{transform:rotate(5deg);}}
+/* Subtle section separator */
+.section{border-top:1px solid #e0f2fe;}
+/* Improve table header on monthly */
+.month-card th{background:#0c1a2e !important;color:#fff !important;font-size:0.78rem;}
+/* Gantt sticky first col bg */
+#gantt-table thead th:first-child{background:#0c1a2e !important;}
+/* Footer */
+footer{background:#f8fbff;border-top:1px solid #bae6fd;}
+
+/* ===== BLOG ===== */
+.blog-hero{background:linear-gradient(135deg,#0c1a2e 0%,#0369a1 60%,#0ea5e9 100%);
+  color:#fff;padding:2rem 1.8rem 1.5rem;text-align:center;}
+.blog-hero h2{font-size:1.8rem;font-weight:800;letter-spacing:-0.03em;color:#fff;margin-bottom:0.3rem;}
+.blog-hero p{color:#bae6fd;font-size:0.92rem;}
+.blog-controls{display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;
+  padding:1rem 1.8rem;background:#f8fbff;border-bottom:1px solid #bae6fd;}
+.blog-controls input{flex:1;min-width:200px;padding:0.5rem 1rem;border:1px solid #bae6fd;
+  border-radius:20px;font-size:0.88rem;outline:none;background:#fff;}
+.blog-controls input:focus{border-color:#0284c7;box-shadow:0 0 0 3px rgba(2,132,199,0.15);}
+.blog-tag-filter{display:flex;gap:0.4rem;flex-wrap:wrap;}
+.tag-btn{padding:0.3rem 0.8rem;border-radius:20px;border:1.5px solid #bae6fd;background:#fff;
+  cursor:pointer;font-size:0.78rem;font-weight:600;color:#0369a1;transition:all 0.2s;}
+.tag-btn:hover,.tag-btn.active{background:#0284c7;color:#fff;border-color:#0284c7;}
+.blog-feed{padding:1.5rem 1.8rem;display:flex;flex-direction:column;gap:1.8rem;max-width:860px;}
+.blog-post{background:#fff;border-radius:14px;box-shadow:0 4px 20px rgba(3,105,161,0.1);
+  overflow:hidden;transition:transform 0.15s,box-shadow 0.15s;}
+.blog-post:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(3,105,161,0.18);}
+.blog-post-img{width:100%;height:220px;object-fit:cover;display:block;background:#e0f2fe;}
+.blog-post-img-placeholder{width:100%;height:220px;background:linear-gradient(135deg,#bae6fd,#e0f2fe);
+  display:flex;align-items:center;justify-content:center;font-size:3rem;}
+.blog-post-body{padding:1.2rem 1.4rem 1.4rem;}
+.blog-post-meta{display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-bottom:0.6rem;}
+.blog-date{font-size:0.78rem;color:var(--muted);display:flex;align-items:center;gap:0.3rem;}
+.blog-tag{display:inline-block;padding:0.15rem 0.6rem;border-radius:10px;font-size:0.72rem;
+  font-weight:700;background:#e0f2fe;color:#0369a1;}
+.blog-tag.digging{background:#fef3c7;color:#92400e;}
+.blog-tag.sowing{background:#dcfce7;color:#166534;}
+.blog-tag.harvest{background:#d1fae5;color:#065f46;}
+.blog-tag.greenhouse{background:#ede9fe;color:#4c1d95;}
+.blog-tag.planning{background:#fce7f3;color:#9d174d;}
+.blog-post h3{font-size:1.15rem;font-weight:700;color:#0c1a2e;margin-bottom:0.5rem;line-height:1.35;}
+.blog-post p.excerpt{font-size:0.88rem;color:var(--text);line-height:1.65;margin-bottom:0.8rem;}
+.blog-post-footer{display:flex;justify-content:space-between;align-items:center;
+  padding-top:0.8rem;border-top:1px solid #e0f2fe;}
+.read-more{font-size:0.82rem;font-weight:600;color:#0284c7;cursor:pointer;background:none;border:none;padding:0;}
+.read-more:hover{text-decoration:underline;}
+.blog-full{display:none;font-size:0.88rem;line-height:1.7;color:var(--text);margin-top:0.8rem;
+  padding-top:0.8rem;border-top:1px solid #e0f2fe;}
+.blog-full p{margin-bottom:0.7rem;}
+.blog-full ul{margin:0.5rem 0 0.7rem 1.2rem;}
+.blog-full li{margin-bottom:0.3rem;}
+.blog-add-btn{display:inline-flex;align-items:center;gap:0.4rem;padding:0.5rem 1.2rem;
+  background:linear-gradient(90deg,#0369a1,#0ea5e9);color:#fff;border:none;border-radius:20px;
+  font-size:0.88rem;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(2,132,199,0.3);
+  transition:all 0.2s;}
+.blog-add-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(2,132,199,0.4);}
+.blog-form{background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:1.2rem;
+  margin-bottom:1.5rem;display:none;}
+.blog-form.open{display:block;}
+.blog-form h4{color:#0c1a2e;margin-bottom:0.8rem;font-size:1rem;}
+.blog-form input,.blog-form textarea,.blog-form select{
+  width:100%;padding:0.5rem 0.8rem;border:1px solid #bae6fd;border-radius:8px;
+  font-size:0.86rem;font-family:inherit;margin-bottom:0.6rem;background:#fff;outline:none;}
+.blog-form input:focus,.blog-form textarea:focus{border-color:#0284c7;}
+.blog-form textarea{min-height:100px;resize:vertical;}
+.blog-form-row{display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;}
+.blog-form-actions{display:flex;gap:0.5rem;margin-top:0.2rem;}
+.btn-save{padding:0.45rem 1.2rem;background:#0284c7;color:#fff;border:none;border-radius:8px;
+  font-weight:600;font-size:0.85rem;cursor:pointer;}
+.btn-cancel{padding:0.45rem 1rem;background:#fff;color:var(--muted);border:1px solid #bae6fd;
+  border-radius:8px;font-size:0.85rem;cursor:pointer;}
+.no-posts{padding:2rem;text-align:center;color:var(--muted);font-size:0.9rem;}
+</style>
+  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+</head>
+<body>
+
+<!-- HEADER -->
+<header style="flex-direction:column;align-items:stretch;gap:0;">
+  <div>
+    <h1>&#127807; Dean's Allotment Planner</h1>
+    <p>Mansfield, Nottinghamshire &bull; Greenhouse &amp; Ground Beds</p>
+  </div>
+  <div style="font-size:0.82rem;opacity:0.8;color:#7dd3fc;" id="hdr-date"></div>
+  <div id="wx-strip" style="margin-top:1rem;background:rgba(255,255,255,0.08);border-radius:10px;padding:0.5rem 0.8rem;backdrop-filter:blur(4px);overflow-x:auto;white-space:nowrap;border:1px solid rgba(255,255,255,0.15);"><span id="wx-status" style="color:#7dd3fc;font-size:0.8rem;">&#9201; Loading Mansfield weather...</span></div>
+</header>
+
+<!-- NAV -->
+<nav>
+  <button onclick="showSection('blog',this)">&#128247; Allotment Blog</button><button class="active" onclick="showSection('monthly',this)">&#128197; Month Guide</button>
+  <button onclick="showSection('crops',this)">&#127807; Crop Guide</button>
+  <button onclick="showSection('gantt',this)">&#128202; Gantt Chart</button>
+  <button onclick="showSection('checklist',this)">&#9989; Monthly Checklist</button>
+  <button onclick="showSection('tips',this)">&#128161; Growing Tips</button>
+</nav>
+
+<!-- BLOG SECTION -->
+<div id="blog" class="section">
+  <div class="blog-hero">
+    <h2>&#127807; Dean's Allotment Diary</h2>
+    <p>Mansfield, Nottinghamshire &bull; A record of progress, jobs done, and lessons learned</p>
+  </div>
+  <div class="blog-controls">
+    <input type="text" id="blog-search" placeholder="&#128269; Search diary entries..." oninput="filterBlog()"/>
+    <div class="blog-tag-filter" id="tag-filters">
+      <button class="tag-btn active" onclick="filterByTag('all',this)">All</button>
+      <button class="tag-btn" onclick="filterByTag('digging',this)">Digging</button>
+      <button class="tag-btn" onclick="filterByTag('sowing',this)">Sowing</button>
+      <button class="tag-btn" onclick="filterByTag('greenhouse',this)">Greenhouse</button>
+      <button class="tag-btn" onclick="filterByTag('harvest',this)">Harvest</button>
+      <button class="tag-btn" onclick="filterByTag('planning',this)">Planning</button>
+    </div>
+    <a href="/admin/" target="_blank" class="blog-add-btn">&#9998; Admin Panel</a>
+  </div>
+  <div class="blog-feed" id="blog-feed"></div>
+</div>
+
+<!-- MONTH GUIDE -->
+<div id="monthly" class="section active">
+  <h2>Month-by-Month Sowing Guide</h2>
+  <p class="subtitle">Colour-coded for your greenhouse/polytunnel and ground beds. Current month highlighted.</p>
+  <div class="legend">
+    <span class="leg i">&#127968; Sow Indoors / Greenhouse</span>
+    <span class="leg o">&#127807; Sow Direct Outdoors</span>
+    <span class="leg t">&#9654; Transplant Out</span>
+    <span class="leg r">&#129716; Pot On / Repot</span>
+    <span class="leg h">&#129365; Harvest</span>
+    <span class="leg gh" style="background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7;">&#127968; Greenhouse Only</span>
+  </div>
+  <div class="months-grid" id="months-grid"></div>
+</div>
+
+<!-- CROP GUIDE -->
+<div id="crops" class="section">
+  <h2>Crop Guide</h2>
+  <p class="subtitle">Full sowing, potting, transplanting and harvest details for 15+ crops. Filter by category.</p>
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="filterCrops('all',this)">All</button>
+    <button class="filter-btn" onclick="filterCrops('vegetables',this)">Vegetables</button>
+    <button class="filter-btn" onclick="filterCrops('roots',this)">Roots</button>
+    <button class="filter-btn" onclick="filterCrops('salads',this)">Salads</button>
+    <button class="filter-btn" onclick="filterCrops('legumes',this)">Legumes</button>
+    <button class="filter-btn" onclick="filterCrops('brassicas',this)">Brassicas</button>
+    <button class="filter-btn" onclick="filterCrops('alliums',this)">Alliums</button>
+    <button class="filter-btn" onclick="filterCrops('herbs',this)">Herbs</button>
+  </div>
+  <div class="crops-grid" id="crops-grid"></div>
+</div>
+
+<!-- GANTT -->
+<div id="gantt" class="section">
+  <h2>Year-at-a-Glance Gantt Chart</h2>
+  <p class="subtitle">Week-by-week timeline for all crops. Current week highlighted in amber. Scroll right.</p>
+  <div class="legend">
+    <span class="leg i">I = Sow Indoors/GH</span>
+    <span class="leg o">O = Sow Outdoors</span>
+    <span class="leg t">T = Transplant</span>
+    <span class="leg r">R = Pot On</span>
+    <span class="leg h">H = Harvest</span>
+  </div>
+  <div class="gantt-wrap"><table id="gantt-table"></table></div>
+</div>
+
+<!-- CHECKLIST -->
+<div id="checklist" class="section">
+  <h2>Monthly Checklist</h2>
+  <p class="subtitle">Tick tasks as you go — your progress is saved in this browser. Current month expanded.</p>
+  <div class="checklist-months" id="checklist-months"></div>
+</div>
+
+<!-- TIPS -->
+<div id="tips" class="section">
+  <h2>Growing Tips &mdash; Mansfield &amp; East Midlands</h2>
+  <p class="subtitle">Local advice for your greenhouse, polytunnel and ground beds.</p>
+  <div class="tips-grid" id="tips-grid"></div>
+</div>
+
+<footer>Dean's Allotment Planner &bull; Weather: Open-Meteo (free, no API key) &bull; Mansfield, Nottinghamshire &bull; Greenhouse &amp; Ground Beds</footer>
+
+<script>
+// ===================== GLOBALS =====================
+var MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+var MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var today = new Date();
+var CURRENT_MONTH = today.getMonth() + 1; // 1-12
+var CURRENT_YEAR = today.getFullYear();
+
+document.getElementById('hdr-date').textContent = today.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+function showSection(id,btn){
+  document.querySelectorAll('.section').forEach(function(s){s.classList.remove('active');});
+  document.querySelectorAll('nav button').forEach(function(b){b.classList.remove('active');});
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ===================== WEATHER =====================
+var WMO_ICON={0:'&#9728;&#65039;',1:'&#127780;&#65039;',2:'&#9925;',3:'&#9729;&#65039;',45:'&#127787;&#65039;',48:'&#127787;&#65039;',
+  51:'&#127782;&#65039;',53:'&#127782;&#65039;',55:'&#127783;&#65039;',61:'&#127783;&#65039;',63:'&#127783;&#65039;',65:'&#127783;&#65039;',
+  71:'&#127784;&#65039;',73:'&#127784;&#65039;',75:'&#10052;&#65039;',80:'&#127782;&#65039;',81:'&#127782;&#65039;',82:'&#9928;&#65039;',
+  95:'&#9928;&#65039;',96:'&#9928;&#65039;',99:'&#9928;&#65039;'};
+var WMO_DESC={0:'Clear',1:'Mainly clear',2:'Part cloudy',3:'Overcast',45:'Foggy',48:'Icy fog',
+  51:'Lt drizzle',53:'Drizzle',55:'Hvy drizzle',61:'Lt rain',63:'Rain',65:'Hvy rain',
+  71:'Lt snow',73:'Snow',75:'Hvy snow',80:'Showers',81:'Showers',82:'Hvy showers',95:'Thunder',96:'Thunder',99:'Thunder'};
+var DAYS_SHORT=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function loadWeather(){
+  var url='https://api.open-meteo.com/v1/forecast?latitude=53.1397&longitude=-1.1979'
+    +'&daily=weathercode,temperature_2m_max,temperature_2m_min,windspeed_10m_max,precipitation_sum,precipitation_probability_max'
+    +'&timezone=Europe%2FLondon&forecast_days=7';
+  fetch(url).then(function(r){return r.json();}).then(function(data){
+    var strip=document.getElementById('wx-strip');
+    var html='<div class="wx-inner"><span style="color:#a8dbb0;font-size:0.8rem;margin-right:0.5rem;">&#128205; Mansfield</span>';
+    data.daily.time.forEach(function(dt,i){
+      var d=new Date(dt+'T12:00:00');
+      var name=i===0?'Today':DAYS_SHORT[d.getDay()];
+      var code=data.daily.weathercode[i];
+      var max=Math.round(data.daily.temperature_2m_max[i]);
+      var min=Math.round(data.daily.temperature_2m_min[i]);
+      var wind=Math.round(data.daily.windspeed_10m_max[i]);
+      var rain=parseFloat(data.daily.precipitation_sum[i]).toFixed(1);
+      var prob=data.daily.precipitation_probability_max[i]||0;
+      var warn='';
+      if(max>=28) warn+='<span class="wx-warn">Heat</span>';
+      if(wind>=50) warn+='<span class="wx-warn">Wind</span>';
+      if(parseFloat(rain)>=20) warn+='<span class="wx-warn">Rain</span>';
+      if(min<=0) warn+='<span class="wx-warn">Frost</span>';
+      html+='<div class="wx-day'+(i===0?' today':'')+'">'
+        +'<span class="wx-name">'+name+'</span>'
+        +'<span class="wx-icon">'+(WMO_ICON[code]||'&#127777;&#65039;')+'</span>'
+        +'<span class="wx-temp">'+max+'&deg;/'+min+'&deg;</span>'
+        +'<span class="wx-rain">&#127783; '+prob+'%</span>'
+        +'<span class="wx-wind">&#128168; '+wind+'km/h</span>'
+        +warn
+        +'</div>';
+    });
+    html+='</div>';
+    strip.innerHTML=html;
+  }).catch(function(){
+    document.getElementById('wx-status').textContent='Weather unavailable — check connection.';
+  });
+}
+loadWeather();
+
+// ===================== CROP DATA =====================
+// months: 1-12. codes: I=indoors/GH, O=outdoors direct, R=pot on/repot, T=transplant out, H=harvest, GH=greenhouse only (overwinter/early)
+var crops = [
+  {name:'Tomato',cat:'vegetables',
+   sow:'Jan-Mar indoors (20°C+)',indoor:true,potOn:'Apr into 9cm, May into final pot',transplant:'Late May after hardening off',harvest:'Jun-Oct',
+   notes:'Needs consistent water. Side-shoot regularly. Support with canes.',
+   months:{1:['I'],2:['I'],3:['I'],4:['R'],5:['R','T'],6:['H'],7:['H'],8:['H'],9:['H'],10:['H']}},
+  {name:'Courgette',cat:'vegetables',
+   sow:'Apr indoors, May direct outdoors',indoor:true,potOn:'Pot on if roots fill module',transplant:'Late May / early Jun after last frost',harvest:'Jun-Sep',
+   notes:'Sow seed on its edge to prevent rotting. Water daily once fruiting.',
+   months:{4:['I'],5:['I','O'],6:['T','H'],7:['H'],8:['H'],9:['H']}},
+  {name:'Cucumber',cat:'vegetables',
+   sow:'Mar-Apr indoors (20°C)',indoor:true,potOn:'Apr pot on to 3L',transplant:'Late May into greenhouse border',harvest:'Jun-Sep',
+   notes:'Best grown in greenhouse/polytunnel in Mansfield. Pinch out main shoot at top wire.',
+   months:{3:['I'],4:['I','R'],5:['R','T'],6:['H'],7:['H'],8:['H'],9:['H']}},
+  {name:'Pepper',cat:'vegetables',
+   sow:'Jan-Feb indoors (25°C+)',indoor:true,potOn:'Mar pot on to 9cm, May final pot',transplant:'Jun into greenhouse',harvest:'Aug-Oct',
+   notes:'Slow to germinate — needs real heat. Keep in greenhouse all season in the Midlands.',
+   months:{1:['I'],2:['I'],3:['I','R'],4:['R'],5:['R'],6:['T'],7:['H'],8:['H'],9:['H'],10:['H']}},
+  {name:'Carrot',cat:'roots',
+   sow:'Mar-Jul direct outdoors (not transplanted)',indoor:false,potOn:'N/A - do not transplant',transplant:'N/A',harvest:'Jun-Oct',
+   notes:'Sow thinly, 1cm deep. Use fine mesh against carrot fly. Succession sow every 3 weeks.',
+   months:{3:['O'],4:['O'],5:['O'],6:['O'],7:['O'],8:['H'],9:['H'],10:['H']}},
+  {name:'Parsnip',cat:'roots',
+   sow:'Mar-Apr direct outdoors (needs cold stratification)',indoor:false,potOn:'N/A',transplant:'N/A',harvest:'Oct-Feb',
+   notes:'Slow to germinate (3-4 weeks). Taste improves after frost. Leave in ground all winter.',
+   months:{3:['O'],4:['O'],10:['H'],11:['H'],12:['H']}},
+  {name:'Beetroot',cat:'roots',
+   sow:'Mar indoors, Apr-Jun direct outdoors',indoor:true,potOn:'If started indoors, pot on Apr',transplant:'May transplant modules outdoors',harvest:'Jul-Oct',
+   notes:'Soak seed for 2 hours before sowing. Each "seed" is a cluster — thin to 1 plant.',
+   months:{3:['I'],4:['I','O','R'],5:['O','T'],6:['O'],7:['H'],8:['H'],9:['H'],10:['H']}},
+  {name:'Lettuce',cat:'salads',
+   sow:'Feb-Aug indoors or direct. Year-round in greenhouse',indoor:true,potOn:'Pot on modules before transplanting',transplant:'Mar-Sep outdoors once established',harvest:'Apr-Nov',
+   notes:'Succession sow every 2-3 weeks. Bolt-resistant varieties for summer.',
+   months:{2:['I'],3:['I','O'],4:['I','O','T'],5:['O','T'],6:['O','H'],7:['O','H'],8:['H'],9:['H'],10:['H'],11:['H']}},
+  {name:'Spinach',cat:'salads',
+   sow:'Mar-May and Aug-Sep direct outdoors. Winter crop in greenhouse',indoor:false,potOn:'N/A',transplant:'N/A',harvest:'May-Jun and Oct-Dec',
+   notes:'Bolts quickly in heat — prefer cool weather. Great winter greenhouse crop.',
+   months:{3:['O'],4:['O'],5:['O'],8:['O'],9:['O'],10:['H'],11:['H'],12:['H']}},
+  {name:'Peas',cat:'legumes',
+   sow:'Feb-Mar indoors or Mar-May direct outdoors',indoor:true,potOn:'Pot on deep modules',transplant:'Apr outdoors once 10cm tall',harvest:'Jun-Aug',
+   notes:'Mice love pea seeds — protect with wire. Provide support from 15cm.',
+   months:{2:['I'],3:['I','O'],4:['O','T'],5:['O'],6:['H'],7:['H'],8:['H']}},
+  {name:'Runner Bean',cat:'legumes',
+   sow:'Apr-May indoors, May-Jun direct outdoors (after frost)',indoor:true,potOn:'Pot on if needed',transplant:'Late May after last frost',harvest:'Jul-Sep',
+   notes:'Needs strong support (2m). Pick regularly to encourage more pods.',
+   months:{4:['I'],5:['I','O','R'],6:['O','T'],7:['H'],8:['H'],9:['H']}},
+  {name:'French Bean',cat:'legumes',
+   sow:'Apr-May indoors, May-Jun direct outdoors',indoor:true,potOn:'Optional — direct is fine',transplant:'Late May',harvest:'Jul-Sep',
+   notes:'Climbing or dwarf varieties. Do not sow until soil is 12°C+.',
+   months:{4:['I'],5:['O','T'],6:['O','H'],7:['H'],8:['H'],9:['H']}},
+  {name:'Kale',cat:'brassicas',
+   sow:'Apr-May indoors or outdoors',indoor:true,potOn:'Pot on to modules before transplanting',transplant:'Jun into permanent bed',harvest:'Aug-Mar',
+   notes:'Net against cabbage white butterfly. Very hardy — crops through winter.',
+   months:{4:['I'],5:['I','O','R'],6:['T'],8:['H'],9:['H'],10:['H'],11:['H'],12:['H']}},
+  {name:'Broccoli (PSB)',cat:'brassicas',
+   sow:'Mar-Apr indoors',indoor:true,potOn:'Apr-May pot on',transplant:'May-Jun into bed',harvest:'Feb-Apr',
+   notes:'Purple sprouting broccoli overwinters and crops Feb-Apr. Net against pigeons and caterpillars.',
+   months:{3:['I'],4:['I','R'],5:['T'],6:['T'],2:['H'],3:['H'],4:['H']}},
+  {name:'Brussels Sprout',cat:'brassicas',
+   sow:'Feb-Mar indoors',indoor:true,potOn:'Apr pot on',transplant:'May into bed (firm in well)',harvest:'Oct-Feb',
+   notes:'Firm soil is essential. Earth up stems. Remove yellowing leaves.',
+   months:{2:['I'],3:['I','R'],4:['R'],5:['T'],10:['H'],11:['H'],12:['H']}},
+  {name:'Leek',cat:'alliums',
+   sow:'Jan-Feb indoors thinly',indoor:true,potOn:'Apr: transplant pencil-thick seedlings',transplant:'May-Jun — drop into dibber holes',harvest:'Sep-Mar',
+   notes:'Drop seedlings into 15cm holes and fill with water only — no soil backfill.',
+   months:{1:['I'],2:['I'],3:['I'],4:['R','T'],5:['T'],9:['H'],10:['H'],11:['H'],12:['H']}},
+  {name:'Onion (from seed)',cat:'alliums',
+   sow:'Jan-Feb indoors',indoor:true,potOn:'Mar pot on to modules',transplant:'Apr outdoors',harvest:'Jul-Aug',
+   notes:'Sow 6-8 seeds per module, do not thin, plant entire clump out.',
+   months:{1:['I'],2:['I'],3:['R'],4:['T'],7:['H'],8:['H']}},
+  {name:'Garlic',cat:'alliums',
+   sow:'Oct-Nov plant direct outdoors',indoor:false,potOn:'N/A',transplant:'N/A',harvest:'Jun-Jul',
+   notes:'Plant cloves pointy end up, 2.5cm deep, 15cm apart. Harvest when lower leaves yellow.',
+   months:{10:['O'],11:['O'],6:['H'],7:['H']}},
+  {name:'Potato (1st Early)',cat:'roots',
+   sow:'Mar-Apr direct outdoors (after chitting from Jan)',indoor:false,potOn:'Earth up regularly',transplant:'N/A',harvest:'Jun-Jul',
+   notes:'Chit from January. Earth up shoots as they appear. Harvest when flowers open.',
+   months:{3:['O'],4:['O'],6:['H'],7:['H']}},
+  {name:'Potato (Maincrop)',cat:'roots',
+   sow:'Apr-May direct outdoors',indoor:false,potOn:'Earth up regularly',transplant:'N/A',harvest:'Aug-Oct',
+   notes:'Leave in ground as long as possible for size. Lift before first heavy frost.',
+   months:{4:['O'],5:['O'],8:['H'],9:['H'],10:['H']}},
+  {name:'Basil',cat:'herbs',
+   sow:'Mar-Apr indoors (18°C+)',indoor:true,potOn:'May pot on to 10cm',transplant:'Jun into greenhouse (hates cold)',harvest:'Jun-Sep',
+   notes:'Never put outdoors in Mansfield — keep in greenhouse/polytunnel all season. Pinch flowers.',
+   months:{3:['I'],4:['I','R'],5:['R'],6:['T','H'],7:['H'],8:['H'],9:['H']}},
+  {name:'Parsley',cat:'herbs',
+   sow:'Mar-Apr indoors or direct outdoors Apr-May',indoor:true,potOn:'Pot on if indoors',transplant:'May outdoors',harvest:'Jun-Oct',
+   notes:'Slow to germinate (3-4 weeks). Soak seed overnight. Can overwinter in greenhouse.',
+   months:{3:['I'],4:['I','O'],5:['O','T'],6:['H'],7:['H'],8:['H'],9:['H'],10:['H']}},
+  {name:'Courgette',cat:'vegetables',hidden:true} // prevent dupe in gantt
+];
+// remove duplicate courgette
+crops = crops.filter(function(c,i){ return !c.hidden; });
+
+// ===================== MONTH GUIDE =====================
+var MONTH_DATA = {
+  1:{crops:[{n:'Tomato',tags:['i']},{n:'Pepper/Chilli',tags:['i']},{n:'Leek',tags:['i']},{n:'Onion (seed)',tags:['i']},{n:'Broad Bean',tags:['i']}]},
+  2:{crops:[{n:'Tomato',tags:['i']},{n:'Pepper',tags:['i']},{n:'Leek',tags:['i']},{n:'Onion (seed)',tags:['i']},{n:'Brussels Sprout',tags:['i']},{n:'Peas',tags:['i']},{n:'Lettuce (GH)',tags:['gh']},{n:'Cauliflower',tags:['i']}]},
+  3:{crops:[{n:'Tomato',tags:['i']},{n:'Courgette',tags:['i']},{n:'Cucumber',tags:['i']},{n:'Beetroot',tags:['i']},{n:'Lettuce',tags:['i','o']},{n:'Peas',tags:['i','o']},{n:'Carrot',tags:['o']},{n:'Parsnip',tags:['o']},{n:'Leek',tags:['i']},{n:'Potato 1st Early',tags:['o']},{n:'Broccoli PSB',tags:['i']},{n:'Parsley',tags:['i']},{n:'Basil (GH)',tags:['i']}]},
+  4:{crops:[{n:'Tomato',tags:['r']},{n:'Courgette',tags:['i']},{n:'Runner Bean',tags:['i']},{n:'French Bean',tags:['i']},{n:'Kale',tags:['i']},{n:'Beetroot',tags:['o']},{n:'Lettuce',tags:['i','o']},{n:'Carrot',tags:['o']},{n:'Onion (sets)',tags:['o']},{n:'Leek',tags:['r','t']},{n:'Potato Maincrop',tags:['o']},{n:'Basil',tags:['r']},{n:'Parsley',tags:['i','o']}]},
+  5:{crops:[{n:'Courgette',tags:['o','t']},{n:'Runner Bean',tags:['o','t']},{n:'French Bean',tags:['o']},{n:'Kale',tags:['o','t']},{n:'Carrot',tags:['o']},{n:'Beetroot',tags:['o','t']},{n:'Lettuce',tags:['o','t']},{n:'Leek',tags:['t']},{n:'Potato Maincrop',tags:['o']},{n:'Basil',tags:['r']},{n:'Parsley',tags:['o','t']},{n:'Cucumber',tags:['r','t']}]},
+  6:{crops:[{n:'Courgette',tags:['h']},{n:'Runner Bean',tags:['t']},{n:'French Bean',tags:['o','h']},{n:'Kale',tags:['t']},{n:'Carrot',tags:['o']},{n:'Lettuce',tags:['o','h']},{n:'Garlic',tags:['h']},{n:'Potato 1st Early',tags:['h']},{n:'Tomato',tags:['h']},{n:'Pepper',tags:['t']},{n:'Spinach',tags:['h']},{n:'Peas',tags:['h']}]},
+  7:{crops:[{n:'Carrot',tags:['o','h']},{n:'Runner Bean',tags:['h']},{n:'French Bean',tags:['h']},{n:'Lettuce',tags:['o','h']},{n:'Potato 1st Early',tags:['h']},{n:'Beetroot',tags:['h']},{n:'Tomato',tags:['h']},{n:'Courgette',tags:['h']},{n:'Garlic',tags:['h']},{n:'Onion',tags:['h']},{n:'Cucumber',tags:['h']},{n:'Peas',tags:['h']}]},
+  8:{crops:[{n:'Carrot',tags:['h']},{n:'Runner Bean',tags:['h']},{n:'French Bean',tags:['h']},{n:'Beetroot',tags:['h']},{n:'Tomato',tags:['h']},{n:'Courgette',tags:['h']},{n:'Kale',tags:['h']},{n:'Onion',tags:['h']},{n:'Spinach',tags:['o']},{n:'Winter Lettuce (GH)',tags:['i']},{n:'Potato Maincrop',tags:['h']},{n:'Cucumber',tags:['h']}]},
+  9:{crops:[{n:'Carrot',tags:['h']},{n:'Runner Bean',tags:['h']},{n:'Tomato',tags:['h']},{n:'Courgette',tags:['h']},{n:'Kale',tags:['h']},{n:'Leek',tags:['h']},{n:'Potato Maincrop',tags:['h']},{n:'Spinach',tags:['o']},{n:'Winter Salads (GH)',tags:['gh']},{n:'Parsnip',tags:['h']}]},
+  10:{crops:[{n:'Garlic',tags:['o']},{n:'Kale',tags:['h']},{n:'Leek',tags:['h']},{n:'Parsnip',tags:['h']},{n:'Carrot',tags:['h']},{n:'Potato Maincrop',tags:['h']},{n:'Brussels Sprout',tags:['h']},{n:'Winter Salads (GH)',tags:['gh']},{n:'Broad Bean (overw)',tags:['o']}]},
+  11:{crops:[{n:'Garlic',tags:['o']},{n:'Kale',tags:['h']},{n:'Leek',tags:['h']},{n:'Parsnip',tags:['h']},{n:'Brussels Sprout',tags:['h']},{n:'Winter Salads (GH)',tags:['gh']}]},
+  12:{crops:[{n:'Leek',tags:['h']},{n:'Parsnip',tags:['h']},{n:'Brussels Sprout',tags:['h']},{n:'Kale',tags:['h']},{n:'Winter Salads (GH)',tags:['gh']},{n:'Seed Ordering',tags:['o']}]}
+};
+
+function badgeFor(tag){
+  if(tag==='i') return '<span class="badge i">&#127968; Indoors</span>';
+  if(tag==='o') return '<span class="badge o">&#127807; Direct</span>';
+  if(tag==='t') return '<span class="badge t">&#9654; Transplant</span>';
+  if(tag==='r') return '<span class="badge r">&#129716; Pot On</span>';
+  if(tag==='h') return '<span class="badge h">&#129365; Harvest</span>';
+  if(tag==='gh') return '<span class="badge gh">&#127968; GH Only</span>';
+  return '';
+}
+
+function buildMonthly(){
+  var g=document.getElementById('months-grid');
+  g.innerHTML='';
+  for(var m=1;m<=12;m++){
+    var isCurrent=m===CURRENT_MONTH;
+    var md=MONTH_DATA[m];
+    var rows='';
+    if(md){
+      md.crops.forEach(function(c){
+        var badges=c.tags.map(badgeFor).join(' ');
+        rows+='<tr><td>'+c.n+'</td><td>'+badges+'</td></tr>';
+      });
+    }
+    g.innerHTML+='<div class="month-card'+(isCurrent?' current-month':'')+'">'+
+      '<div class="mh">'+MONTH_NAMES[m-1]+(isCurrent?' <small>&#128204; Current month</small>':'')+'</div>'+
+      '<table><tbody>'+rows+'</tbody></table></div>';
+  }
+}
+buildMonthly();
+
+// ===================== CROP GUIDE =====================
+function mbCell(code){
+  var cls='mb-cell';
+  if(code==='I') cls+=' mbi';
+  else if(code==='O') cls+=' mbo';
+  else if(code==='R') cls+=' mbr';
+  else if(code==='H') cls+=' mbh';
+  else if(code==='T') cls+=' mbt';
+  return '<div class="'+cls+'" title="'+code+'"></div>';
+}
+
+function buildCropCard(c){
+  // month bar
+  var bar='<div class="mb-labels">'+MONTH_SHORT.map(function(s){return '<span>'+s+'</span>';}).join('')+'</div><div class="month-bar">';
+  for(var m=1;m<=12;m++){
+    var acts=c.months[m];
+    if(!acts||acts.length===0){bar+='<div class="mb-cell"></div>';continue;}
+    var code=acts[0];
+    bar+=mbCell(code);
+  }
+  bar+='</div>';
+  return '<div class="crop-card" data-cat="'+c.cat+'">'+
+    '<div class="crop-header"><h3>'+c.name+'</h3><span class="crop-cat">'+c.cat+'</span></div>'+
+    '<div class="crop-body">'+
+    bar+
+    '<div class="crop-row"><span class="crop-label">&#127807; Sow:</span><span>'+c.sow+'</span></div>'+
+    '<div class="crop-row"><span class="crop-label">&#127968; Indoors:</span><span>'+(c.indoor?'Yes — start under cover':'No — direct sow')+'</span></div>'+
+    '<div class="crop-row"><span class="crop-label">&#129716; Pot on:</span><span>'+c.potOn+'</span></div>'+
+    '<div class="crop-row"><span class="crop-label">&#9654; Transplant:</span><span>'+c.transplant+'</span></div>'+
+    '<div class="crop-row"><span class="crop-label">&#129365; Harvest:</span><span>'+c.harvest+'</span></div>'+
+    '<div class="crop-row"><span class="crop-label">&#128203; Notes:</span><span>'+c.notes+'</span></div>'+
+    '</div></div>';
+}
+
+function buildCrops(){
+  var g=document.getElementById('crops-grid');
+  g.innerHTML='';
+  crops.forEach(function(c){
+    g.innerHTML+=buildCropCard(c);
+  });
+}
+buildCrops();
+
+function filterCrops(cat,btn){
+  document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  document.querySelectorAll('.crop-card').forEach(function(card){
+    card.style.display=(cat==='all'||card.dataset.cat===cat)?'':'none';
+  });
+}
+
+// ===================== GANTT =====================
+function getISOWeek(d){
+  var date=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  var day=date.getUTCDay()||7;
+  date.setUTCDate(date.getUTCDate()+4-day);
+  var yearStart=new Date(Date.UTC(date.getUTCFullYear(),0,1));
+  return Math.ceil((((date-yearStart)/86400000)+1)/7);
+}
+var currentWeek=getISOWeek(today);
+
+function buildGantt(){
+  var table=document.getElementById('gantt-table');
+  var wpm=[4,4,5,4,4,5,4,5,4,4,5,4];
+  var cols=[];
+  var wn=1;
+  for(var m=0;m<12;m++){for(var w=0;w<wpm[m];w++){cols.push({month:m+1,week:wn});wn++;}}
+  var h1='<tr><th>Crop</th>';
+  for(var m=0;m<12;m++) h1+='<th colspan="'+wpm[m]+'">'+MONTH_SHORT[m]+'</th>';
+  h1+='</tr>';
+  var h2='<tr><th>Wk&rarr;</th>';
+  cols.forEach(function(c){
+    var s=c.week===currentWeek?' style="background:var(--accent);color:#000;font-weight:bold"':'';
+    h2+='<th'+s+'>'+c.week+'</th>';
+  });
+  h2+='</tr>';
+  var body='';
+  crops.forEach(function(v){
+    var row='<tr><td>'+v.name+'</td>';
+    cols.forEach(function(wc){
+      var acts=v.months[wc.month];
+      if(!acts){row+='<td></td>';return;}
+      var a=acts[0];
+      var cls='';
+      if(a==='I') cls='gi';
+      else if(a==='O') cls='go';
+      else if(a==='R') cls='gr';
+      else if(a==='H') cls='gh-cell';
+      else if(a==='T') cls='gt';
+      var cw=wc.week===currentWeek?' gcw':'';
+      row+='<td class="'+cls+cw+'">'+a+'</td>';
+    });
+    row+='</tr>';
+    body+=row;
+  });
+  table.innerHTML='<thead>'+h1+h2+'</thead><tbody>'+body+'</tbody>';
+}
+buildGantt();
+
+// ===================== CHECKLIST =====================
+var TASKS = {
+  1:{indoor:['Start tomatoes and peppers in propagator (20°C+)','Sow leeks thinly in trays','Chit seed potatoes on windowsill','Check stored onions/garlic for rot'],
+     outdoor:['Dig and mulch beds if not frozen','Order seeds from catalogue'],
+     general:['Clean and sterilise pots and trays','Service tools — sharpen, oil handles']},
+  2:{indoor:['Continue tomato/pepper sowings','Sow broad beans in modules','Sow onions from seed','Pot on any rootbound seedlings'],
+     outdoor:['Sow broad beans direct if mild','Apply mulch to vegetable beds'],
+     general:['Check seed packets for viability','Plan crop rotation for the year']},
+  3:{indoor:['Sow tomatoes (final batch)','Sow courgette and cucumber (GH)','Sow lettuce in modules','Sow basil in propagator','Sow beetroot'],
+     outdoor:['Sow parsnip and carrot direct','Plant onion sets (under fleece)','Plant 1st early potatoes (late March)','Sow broad beans direct'],
+     general:['Harden off any overwintered plants','Prepare beds — fork lightly, add compost']},
+  4:{indoor:['Pot on tomatoes to 9cm','Sow runner beans and French beans','Sow kale in modules','Sow basil on','Sow celery/celeriac'],
+     outdoor:['Sow carrot and beetroot direct','Plant maincrop potatoes','Sow lettuce direct (under fleece)'],
+     general:['Net brassica beds','Set up bean poles and supports','Begin hardening off indoor seedlings']},
+  5:{indoor:['Last tomato potting on to final containers','Pot on courgette if needed','Sow French beans for succession'],
+     outdoor:['Plant out courgette after last frost','Sow runner beans direct','Sow French beans direct','Sow sweetcorn in blocks'],
+     general:['Harden off all plants over 10 days','Watch for late frosts (fleece ready)','Set up drip irrigation in GH']},
+  6:{indoor:['Sow winter salads in GH (late June)'],
+     outdoor:['Plant out courgette/squash final positions','Sow French beans succession','Sow carrot (fast varieties)','Harvest garlic when leaves yellow'],
+     general:['Water regularly — GH may need twice daily','Pinch out tomato side shoots weekly','Feed tomatoes and peppers with liquid feed']},
+  7:{indoor:['Sow winter salads in GH'],
+     outdoor:['Sow spring onions for autumn','Sow turnips'],
+     general:['Harvest regularly — courgette daily','Continue liquid feeding tomatoes','Check for blight on potatoes','Water in dry spells — morning preferred']},
+  8:{indoor:['Sow winter lettuce and salads in GH','Sow spinach in GH for autumn'],
+     outdoor:['Sow spring cabbage','Sow spinach direct','Sow overwintering onion sets (late Aug)'],
+     general:['Begin lifting maincrop potatoes','Dry and store onions','Cut back spent bean plants','Clear and compost finished crops']},
+  9:{indoor:['Sow winter salads (GH) — mizuna, mustard, chard','Pot on herbs for windowsill winter use'],
+     outdoor:['Plant overwintering garlic (late Sep)','Last direct carrot sowing (under fleece)'],
+     general:['Lift and store maincrop potatoes','Check leeks and parsnips for harvest','Net brassicas against pigeons','Remove tomato plants before blight spreads']},
+  10:{indoor:['Sow broad beans in pots for GH overwintering','Final lettuce sowing in GH'],
+      outdoor:['Plant garlic and shallots','Plant overwintering onion sets'],
+      general:['Lift remaining root crops before hard frost','Cut down asparagus ferns','Add compost/manure to cleared beds','Clean out greenhouse before winter crops']},
+  11:{indoor:['Check GH winter salads — ventilate on mild days'],
+      outdoor:['Finish planting garlic','Protect parsnips and leeks with straw'],
+      general:['Clear leaves from paths','Service lawnmower and machinery','Order seed catalogues for next year','Mulch brassica beds heavily']},
+  12:{indoor:['Enjoy GH winter salads','Plan propagator schedule for January'],
+      outdoor:['Dig over empty beds (if not no-dig)','Protect leeks and parsnips'],
+      general:['Order seeds — tomatoes and peppers first','Review what worked and what didn\'t','Clean and store all canes and supports','Rest and plan!']}
+};
+
+function buildChecklist(){
+  var cont=document.getElementById('checklist-months');
+  cont.innerHTML='';
+  for(var m=1;m<=12;m++){
+    var isCurrent=m===CURRENT_MONTH;
+    var tasks=TASKS[m]||{indoor:[],outdoor:[],general:[]};
+    var sections=[
+      {key:'indoor',label:'&#127968; Indoor / Greenhouse / Potting',tasks:tasks.indoor||[]},
+      {key:'outdoor',label:'&#127807; Outdoor Tasks',tasks:tasks.outdoor||[]},
+      {key:'general',label:'&#9881; General Tasks',tasks:tasks.general||[]}
+    ];
+    var bodyHtml='';
+    sections.forEach(function(sec){
+      if(!sec.tasks.length) return;
+      bodyHtml+='<div class="cl-section-title">'+sec.label+'</div>';
+      sec.tasks.forEach(function(task,ti){
+        var key='cl_'+m+'_'+sec.key+'_'+ti;
+        var checked=localStorage.getItem(key)==='1';
+        bodyHtml+='<label class="cl-item'+(checked?' done':'')+'">'+
+          '<input type="checkbox" data-key="'+key+'"'+(checked?' checked':'')+' onchange="toggleTask(this)"> '+
+          '<span>'+task+'</span></label>';
+      });
+    });
+    cont.innerHTML+='<div class="cl-card'+(isCurrent?' current-month':'')+'">'+
+      '<div class="cl-header" onclick="toggleMonth(this)">'+
+        MONTH_NAMES[m-1]+(isCurrent?' &#128204;':'')+
+        '<span>&#9660;</span>'+
+      '</div>'+
+      '<div class="cl-body open">'+bodyHtml+'</div></div>';
+  }
+}
+buildChecklist();
+
+function toggleTask(cb){
+  var key=cb.dataset.key;
+  localStorage.setItem(key,cb.checked?'1':'0');
+  var label=cb.closest('.cl-item');
+  if(cb.checked) label.classList.add('done');
+  else label.classList.remove('done');
+}
+function toggleMonth(hdr){
+  var body=hdr.nextElementSibling;
+  body.classList.toggle('open');
+}
+
+// ===================== TIPS =====================
+var TIPS=[
+  {title:'&#10052;&#65039; Frost Dates — Mansfield',text:'Average last frost in Mansfield is around 15–20 April. First autumn frost typically arrives in late October. Never plant tender crops (tomatoes, courgette, beans) outside before late May without fleece protection.'},
+  {title:'&#127968; Your Greenhouse Advantage',text:'With a greenhouse or polytunnel you can start tomatoes in January, grow cucumbers and peppers all season, overwinter salads, and harvest 4–6 weeks earlier than open-ground growers. Keep a min/max thermometer inside.'},
+  {title:'&#127807; Hardening Off',text:'Move indoor seedlings to a sheltered spot outside for 1–2 hours on day 1, increasing by 1–2 hours per day over 10–14 days. Avoid windy days initially. This prevents transplant shock and leaf scorch.'},
+  {title:'&#128260; Crop Rotation — 4-Bed System',text:'Bed 1: Brassicas. Bed 2: Roots. Bed 3: Legumes. Bed 4: Alliums/Potatoes. Rotate clockwise each year. Never grow the same family in the same bed two years running — prevents clubroot, white rot and eelworm buildup.'},
+  {title:'&#128027; Pest Watch — Mansfield Calendar',text:'Mar–Apr: Slugs (beer traps, nematodes). May–Jun: Carrot fly (fine mesh), flea beetle on brassicas. Jun–Aug: Blackfly on beans (pinch tips), cabbage white caterpillars (net brassicas). Sep–Oct: Vine weevil in pots.'},
+  {title:'&#128167; Watering Guide',text:'Water in the morning to reduce evaporation and fungal risk. Tomatoes and cucumbers need consistent moisture — irregular watering causes blossom end rot and fruit split. Mulch beds to retain moisture.'},
+  {title:'&#128230; Succession Sowing',text:'Sow lettuce, radish, spring onion, spinach, and French beans every 2–3 weeks from March to July. This spreads harvests across the season and prevents gluts. Aim for a sowing every 14–21 days.'},
+  {title:'&#127860; No-Dig Principles',text:'Don\'t disturb the soil — add 2–5cm of compost on top each autumn and let worms do the work. This preserves soil structure, reduces weeds, retains moisture and increases earthworm activity. Less work, better crops.'},
+  {title:'&#129716; Potting On Guide',text:'Tomato: 7cm → 9cm (April) → final 30L pot (May). Cucumber: module → 3L (April) → GH border (May). Leek: tray → module (April) → bed (May). Pot on before plants become root-bound but not before they\'re established.'},
+  {title:'&#129514; Greenhouse Winter Crops',text:'Sow Oriental greens, mizuna, mustard, winter lettuce, and spinach in the GH from August onwards. These will crop from October through to March with minimal heat. Ventilate on mild days to prevent damping off.'}
+];
+var tg=document.getElementById('tips-grid');
+TIPS.forEach(function(t){
+  tg.innerHTML+='<div class="tip-card"><h4>'+t.title+'</h4><p>'+t.text+'</p></div>';
+});
+
+
+// ===================== BLOG (Netlify + DecapCMS) =====================
+var activeTag = 'all';
+
+// Parse simple YAML frontmatter + markdown body from .md files
+function parseFrontmatter(raw) {
+  var result = {title:'',date:'',tag:'planning',excerpt:'',img:'',body:''};
+  var fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
+  if (!fmMatch) { result.body = raw; return result; }
+  var fm = fmMatch[1], body = fmMatch[2].trim();
+  fm.split('\n').forEach(function(line) {
+    var m = line.match(/^(\w+):\s*"?([^"]*)"?\s*$/);
+    if (m && result.hasOwnProperty(m[1])) result[m[1]] = m[2].trim();
+  });
+  result.body = markdownToHtml(body);
+  return result;
+}
+
+// Very lightweight markdown → HTML (bold, lists, paragraphs)
+function markdownToHtml(md) {
+  var lines = md.split('\n');
+  var html = '', inList = false;
+  lines.forEach(function(line) {
+    line = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    line = line.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    if (/^[-*] (.+)/.test(line)) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      html += '<li>' + line.replace(/^[-*] /, '') + '</li>';
+    } else {
+      if (inList) { html += '</ul>'; inList = false; }
+      if (line.trim()) html += '<p>' + line + '</p>';
+    }
+  });
+  if (inList) html += '</ul>';
+  return html;
+}
+
+function formatDate(str) {
+  var d = new Date(str + 'T12:00:00');
+  return d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+}
+
+// Fetch list of posts from _posts/ directory via GitHub raw API
+// Falls back to hardcoded sample posts if fetch fails (e.g. localhost)
+var POSTS_CACHE = null;
+
+function fetchPosts(callback) {
+  if (POSTS_CACHE) { callback(POSTS_CACHE); return; }
+  // Fetch the directory listing via GitHub API
+  var apiUrl = 'https://api.github.com/repos/wallisonline/AllotmentPlanner/contents/_posts';
+  fetch(apiUrl)
+    .then(function(r){ return r.json(); })
+    .then(function(files) {
+      if (!Array.isArray(files)) throw new Error('Not an array');
+      var promises = files
+        .filter(function(f){ return f.name.endsWith('.md'); })
+        .map(function(f){ return fetch(f.download_url).then(function(r){ return r.text(); }); });
+      return Promise.all(promises);
+    })
+    .then(function(raws) {
+      var posts = raws.map(function(raw, i){ return parseFrontmatter(raw); });
+      posts.sort(function(a,b){ return b.date.localeCompare(a.date); });
+      POSTS_CACHE = posts;
+      callback(posts);
+    })
+    .catch(function() {
+      // Fallback: show helpful message
+      POSTS_CACHE = [];
+      callback([]);
+    });
+}
+
+function renderBlog(posts) {
+  var feed = document.getElementById('blog-feed');
+  var search = document.getElementById('blog-search') ? document.getElementById('blog-search').value.toLowerCase() : '';
+  var filtered = posts.filter(function(p) {
+    var matchTag = activeTag === 'all' || p.tag === activeTag;
+    var matchSearch = !search || p.title.toLowerCase().indexOf(search) > -1 || p.excerpt.toLowerCase().indexOf(search) > -1;
+    return matchTag && matchSearch;
+  });
+  if (!filtered.length) {
+    feed.innerHTML = '<div class="no-posts">&#127807; No entries found yet. Add your first diary entry via the Admin panel.</div>';
+    return;
+  }
+  feed.innerHTML = '';
+  filtered.forEach(function(post, idx) {
+    var imgHtml = post.img
+      ? '<img class="blog-post-img" src="'+post.img+'" alt="'+post.title+'" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
+        + '<div class="blog-post-img-placeholder" style="display:none">&#127807;</div>'
+      : '<div class="blog-post-img-placeholder">&#127807;</div>';
+    var tagLabels = {digging:'&#129748; Digging',sowing:'&#127807; Sowing',greenhouse:'&#127968; Greenhouse',harvest:'&#129365; Harvest',planning:'&#128203; Planning'};
+    feed.innerHTML +=
+      '<div class="blog-post" id="post-'+idx+'" data-tag="'+post.tag+'">'
+      + imgHtml
+      + '<div class="blog-post-body">'
+      + '<div class="blog-post-meta">'
+      + '<span class="blog-date">&#128197; '+formatDate(post.date)+'</span>'
+      + '<span class="blog-tag '+post.tag+'">'+(tagLabels[post.tag]||post.tag)+'</span>'
+      + '</div>'
+      + '<h3>'+post.title+'</h3>'
+      + '<p class="excerpt">'+post.excerpt+'</p>'
+      + '<div class="blog-full" id="full-'+idx+'">'+post.body+'</div>'
+      + '<div class="blog-post-footer">'
+      + '<button class="read-more" onclick="toggleFull('+idx+',this)">Read more &#8594;</button>'
+      + '<a href="/admin/#/collections/blog" class="read-more" style="color:#0369a1;text-decoration:none;" target="_blank">&#9998; Edit in Admin</a>'
+      + '</div>'
+      + '</div></div>';
+  });
+}
+
+function toggleFull(id, btn) {
+  var el = document.getElementById('full-'+id);
+  var open = el.style.display === 'block';
+  el.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? 'Read more \u2192' : 'Show less \u2191';
+}
+
+function filterBlog() {
+  fetchPosts(renderBlog);
+}
+
+function filterByTag(tag, btn) {
+  activeTag = tag;
+  document.querySelectorAll('.tag-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  fetchPosts(renderBlog);
+}
+
+// Remove the add-entry form from the blog controls (editing done via /admin)
+// Replace toggleBlogForm and saveBlogEntry with admin redirect
+function toggleBlogForm() {
+  window.open('/admin/', '_blank');
+}
+
+// Initial load
+fetchPosts(renderBlog);
+
+ }
+
+function filterByTag(tag, btn) {
+  activeTag = tag;
+  document.querySelectorAll('.tag-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  renderBlog(loadBlogPosts());
+}
+
+function toggleBlogForm() {
+  var f = document.getElementById('blog-form');
+  f.classList.toggle('open');
+  if (f.classList.contains('open')) {
+    document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+  }
+}
+
+function saveBlogEntry() {
+  var title = document.getElementById('f-title').value.trim();
+  var date = document.getElementById('f-date').value;
+  var tag = document.getElementById('f-tag').value;
+  var img = document.getElementById('f-img').value.trim();
+  var excerpt = document.getElementById('f-excerpt').value.trim();
+  var full = document.getElementById('f-full').value.trim();
+  if (!title || !date || !excerpt) { alert('Please fill in title, date and summary at minimum.'); return; }
+  var posts = loadBlogPosts();
+  var newId = Date.now();
+  posts.push({id:newId, date:date, title:title, tag:tag, img:img||'', excerpt:excerpt, full:'<p>'+full.split('\n\n').join('</p><p>')+'</p>'});
+  savePosts(posts);
+  document.getElementById('f-title').value='';
+  document.getElementById('f-img').value='';
+  document.getElementById('f-excerpt').value='';
+  document.getElementById('f-full').value='';
+  document.getElementById('blog-form').classList.remove('open');
+  renderBlog(posts);
+}
+
+renderBlog(loadBlogPosts());
+
+</script>
+
+<script>
+if (window.netlifyIdentity) {
+  window.netlifyIdentity.on("init", function(user) {
+    if (!user) {
+      window.netlifyIdentity.on("login", function() {
+        document.location.href = "/admin/";
+      });
+    }
+  });
+}
+</script>
+</body>
+</html>
