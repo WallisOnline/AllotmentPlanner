@@ -252,29 +252,12 @@ footer{background:#f8fbff;border-top:1px solid #bae6fd;}
       <button class="tag-btn" onclick="filterByTag('harvest',this)">Harvest</button>
       <button class="tag-btn" onclick="filterByTag('planning',this)">Planning</button>
     </div>
-    <button class="blog-add-btn" onclick="toggleBlogForm()">&#43; Add Entry</button>
+    <a class="blog-add-btn" href="https://github.com/wallisonline/AllotmentPlanner/issues/new?labels=blog-post&title=Week+of+DATE+-+TITLE&body=%23%23+Summary%0A%0A%23%23+Full+Entry%0A%0A%23%23+Photo%0A%0A" target="_blank">&#9997; Write New Post on GitHub</a>
   </div>
-  <div style="padding:0 1.8rem;">
-    <div class="blog-form" id="blog-form">
-      <h4>&#9997;&#65039; New Diary Entry</h4>
-      <div class="blog-form-row">
-        <input type="text" id="f-title" placeholder="Entry title e.g. First Seeds of Spring"/>
-        <input type="date" id="f-date"/>
-      </div>
-      <select id="f-tag">
-        <option value="digging">Digging / Clearing</option>
-        <option value="sowing">Sowing / Planting</option>
-        <option value="greenhouse">Greenhouse / Polytunnel</option>
-        <option value="harvest">Harvest</option>
-        <option value="planning">Planning / General</option>
-      </select>
-      <input type="text" id="f-img" placeholder="Image URL (optional) — paste a link to a photo"/>
-      <textarea id="f-excerpt" placeholder="Short summary (shown on card)..."></textarea>
-      <textarea id="f-full" placeholder="Full entry — jobs done, observations, what worked, what didn't..."></textarea>
-      <div class="blog-form-actions">
-        <button class="btn-save" onclick="saveBlogEntry()">&#10003; Save Entry</button>
-        <button class="btn-cancel" onclick="toggleBlogForm()">Cancel</button>
-      </div>
+  <div style="padding:0 1.8rem 1rem;">
+    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:0.9rem 1.2rem;font-size:0.84rem;color:#0369a1;">
+      &#128274; <strong>Posts are written via GitHub Issues</strong> &mdash; only you can post, everyone can read them.
+      <a href="https://github.com/wallisonline/AllotmentPlanner/issues?q=label%3Ablog-post" target="_blank" style="margin-left:0.5rem;font-weight:700;color:#0369a1;">View all on GitHub &#8599;</a>
     </div>
   </div>
   <div class="blog-feed" id="blog-feed"></div>
@@ -751,141 +734,185 @@ TIPS.forEach(function(t){
   tg.innerHTML+='<div class="tip-card"><h4>'+t.title+'</h4><p>'+t.text+'</p></div>';
 });
 
-// ===================== BLOG =====================
-var BLOG_STORAGE_KEY = 'deans_allotment_blog_v1';
+// ===================== BLOG (GitHub Issues CMS) =====================
+// Posts are GitHub Issues with label "blog-post" in wallisonline/AllotmentPlanner
+// Free GitHub API - 60 requests/hour unauthenticated, plenty for a personal site
 var activeTag = 'all';
+var REPO = 'wallisonline/AllotmentPlanner';
+var POSTS_CACHE = null;
 
-var SAMPLE_POSTS = [
-  {
-    id: 1,
-    date: '2026-03-02',
-    title: 'First Week of March — Beds Prepared & Seeds Ordered',
-    tag: 'planning',
-    img: 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800&q=80',
-    excerpt: 'A productive start to March. Spent the weekend getting the beds ready after a wet February, turning compost into the main growing beds and ordering the last of this year\'s seeds.',
-    full: '<p>Finally got onto the allotment after what felt like weeks of rain. The ground has dried out enough to work without compacting it too badly. Spent most of Saturday turning the three main beds over and working in a barrow-load of well-rotted compost from the far bin.</p><ul><li>Turned compost into beds 1, 2 and 3</li><li>Raked bed 4 level and covered with cardboard to suppress early weeds</li><li>Oiled and sharpened the fork and spade — long overdue</li><li>Placed final seed order: Gardeners Delight tomatoes, Cobra French bean, Tender and True parsnip</li></ul><p>In the greenhouse, the leeks I sowed back in January are looking decent — about 8cm tall now. I\'ll start hardening them off in April. The onion seeds I sowed in February are just starting to show above the compost. Slow but steady.</p><p>Next weekend: get the first early potatoes in if the soil temperature is above 7°C.</p>'
-  },
-  {
-    id: 2,
-    date: '2026-03-09',
-    title: 'Week Two — Tomatoes Sown & Greenhouse Tidied',
-    tag: 'greenhouse',
-    img: 'https://images.unsplash.com/photo-1592419044706-39796d40f98c?w=800&q=80',
-    excerpt: 'Got the tomatoes and peppers sown in the propagator today — a month later than last year but conditions feel right. Also gave the greenhouse a proper clean-out ready for the season.',
-    full: '<p>A solid day on the plot and in the greenhouse. The priority today was getting the tomatoes started — I\'ve been holding off because last year\'s seedlings got too leggy on the windowsill before I had space to pot them on properly.</p><ul><li>Sowed 12 x Gardeners Delight tomato seeds in the propagator at 20°C</li><li>Sowed 6 x Marconi Rosso pepper seeds (slow germinators — fingers crossed)</li><li>Sowed a tray of basil — tucked right at the back of the propagator for warmth</li><li>Washed down the greenhouse staging with diluted Jeyes fluid</li><li>Re-organised the shelf layout to give the propagator a permanent warm spot</li></ul><p>Outside, the broad beans I sowed in modules back in February have been moved to the cold frame to harden off gradually. They\'re looking stocky and healthy — no signs of the blackfly that plagued them last summer.</p><p>The rhubarb crown in the far corner is just starting to push through which is always a welcome sign. I\'ll leave it one more year before harvesting any stalks.</p><p>Jobs for next week: chit the first early potatoes on the windowsill, direct sow a row of parsnips, and get a bed of overwintered spinach cleared and ready.</p>'
+var TAG_LABELS = {
+  digging: '&#129748; Digging',
+  sowing: '&#127807; Sowing',
+  greenhouse: '&#127968; Greenhouse',
+  harvest: '&#129365; Harvest',
+  planning: '&#128203; Planning'
+};
+
+function fmtDate(str) {
+  try {
+    var d = new Date(str);
+    return d.toLocaleDateString('en-GB', {weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  } catch(e) { return str; }
+}
+
+// Extract tag from issue labels (look for digging/sowing/greenhouse/harvest/planning)
+function getTag(labels) {
+  var tagNames = ['digging','sowing','greenhouse','harvest','planning'];
+  for (var i = 0; i < labels.length; i++) {
+    var ln = labels[i].name.toLowerCase();
+    if (tagNames.indexOf(ln) > -1) return ln;
   }
-];
+  return 'planning';
+}
 
-function loadBlogPosts() {
-  var stored = localStorage.getItem(BLOG_STORAGE_KEY);
-  if (stored) {
-    try { return JSON.parse(stored); } catch(e) {}
+// Extract image URL from issue body - looks for first URL ending in image extension
+// or a markdown image ![...](url)
+function extractImg(body) {
+  if (!body) return '';
+  var mdImg = body.match(/!\[.*?\]\((https?:\/\/[^\)]+)\)/);
+  if (mdImg) return mdImg[1];
+  var urlImg = body.match(/https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp)(?:\?\S*)?/i);
+  if (urlImg) return urlImg[0];
+  // GitHub uploaded images (user-images.githubusercontent.com)
+  var ghImg = body.match(/https?:\/\/[^\s)]+user-images\.githubusercontent\.com[^\s)]+/);
+  if (ghImg) return ghImg[0];
+  return '';
+}
+
+// Extract summary (first paragraph before any --- divider or Full Entry section)
+function extractSummary(body) {
+  if (!body) return '';
+  // Remove markdown images
+  var clean = body.replace(/!\[.*?\]\([^\)]+\)/g, '').trim();
+  // Get first non-empty paragraph
+  var lines = clean.split('\n');
+  var summary = '';
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (line && !line.startsWith('#') && !line.startsWith('**Summary') && !line.startsWith('**Photo')) {
+      summary = line.replace(/\*\*/g,'');
+      break;
+    }
   }
-  localStorage.setItem(BLOG_STORAGE_KEY, JSON.stringify(SAMPLE_POSTS));
-  return SAMPLE_POSTS;
+  return summary.length > 200 ? summary.substring(0,200) + '...' : summary;
 }
 
-function savePosts(posts) {
-  localStorage.setItem(BLOG_STORAGE_KEY, JSON.stringify(posts));
+// Convert basic markdown to HTML for full post body
+function mdToHtml(md) {
+  if (!md) return '';
+  var lines = md.split('\n');
+  var out = '', inList = false;
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i]
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/!\[.*?\]\([^\)]+\)/g, ''); // strip inline images (shown as hero)
+    if (/^[-*] .+/.test(line)) {
+      if (!inList) { out += '<ul>'; inList = true; }
+      out += '<li>' + line.replace(/^[-*] /,'') + '</li>';
+    } else if (/^#{1,3} (.+)/.test(line)) {
+      if (inList) { out += '</ul>'; inList = false; }
+      out += '<strong>' + line.replace(/^#{1,3} /,'') + '</strong><br>';
+    } else {
+      if (inList) { out += '</ul>'; inList = false; }
+      if (line.trim()) out += '<p>' + line.trim() + '</p>';
+    }
+  }
+  if (inList) out += '</ul>';
+  return out;
 }
 
-function formatDate(str) {
-  var d = new Date(str + 'T12:00:00');
-  return d.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
-}
-
-function renderBlog(posts) {
+function fetchPosts(callback) {
+  if (POSTS_CACHE !== null) { callback(POSTS_CACHE); return; }
+  var url = 'https://api.github.com/repos/' + REPO + '/issues?labels=blog-post&state=open&per_page=50&sort=created&direction=desc';
   var feed = document.getElementById('blog-feed');
-  var search = document.getElementById('blog-search').value.toLowerCase();
-  var filtered = posts.filter(function(p) {
-    var matchTag = activeTag === 'all' || p.tag === activeTag;
-    var matchSearch = !search || p.title.toLowerCase().indexOf(search) > -1 || p.excerpt.toLowerCase().indexOf(search) > -1;
-    return matchTag && matchSearch;
-  });
-  filtered.sort(function(a,b){ return b.date.localeCompare(a.date); });
+  if (feed) feed.innerHTML = '<div class="no-posts">&#9201; Loading posts...</div>';
+  fetch(url)
+    .then(function(r) {
+      if (!r.ok) throw new Error('GitHub API error: ' + r.status);
+      return r.json();
+    })
+    .then(function(issues) {
+      POSTS_CACHE = issues;
+      callback(issues);
+    })
+    .catch(function(err) {
+      POSTS_CACHE = [];
+      if (feed) feed.innerHTML = '<div class="no-posts">&#127807; No posts found yet, or GitHub API is unavailable.<br><small>' + err.message + '</small></div>';
+    });
+}
+
+function renderBlog(issues) {
+  var feed = document.getElementById('blog-feed');
+  if (!feed) return;
+  var search = '';
+  try { search = document.getElementById('blog-search').value.toLowerCase(); } catch(e) {}
+  var filtered = [];
+  for (var i = 0; i < issues.length; i++) {
+    var iss = issues[i];
+    var tag = getTag(iss.labels);
+    var matchTag = activeTag === 'all' || tag === activeTag;
+    var matchSearch = !search ||
+      iss.title.toLowerCase().indexOf(search) > -1 ||
+      (iss.body && iss.body.toLowerCase().indexOf(search) > -1);
+    if (matchTag && matchSearch) filtered.push(iss);
+  }
   if (!filtered.length) {
-    feed.innerHTML = '<div class="no-posts">&#127807; No entries found. Add your first diary entry above!</div>';
+    feed.innerHTML = '<div class="no-posts">&#127807; No posts yet. <a href="https://github.com/' + REPO + '/issues/new?labels=blog-post" target="_blank">Write your first post on GitHub</a>.</div>';
     return;
   }
-  feed.innerHTML = '';
-  filtered.forEach(function(post) {
-    var imgHtml = post.img
-      ? '<img class="blog-post-img" src="'+post.img+'" alt="'+post.title+'" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
-        + '<div class="blog-post-img-placeholder" style="display:none">&#127807;</div>'
+  var out = '';
+  for (var i = 0; i < filtered.length; i++) {
+    var p = filtered[i];
+    var tag = getTag(p.labels);
+    var img = extractImg(p.body);
+    var summary = extractSummary(p.body);
+    var fullHtml = mdToHtml(p.body);
+    var imgHtml = img
+      ? '<img class="blog-post-img" src="' + img + '" alt="' + p.title + '" onerror="this.style.display=\'none\'">'
       : '<div class="blog-post-img-placeholder">&#127807;</div>';
-    var tagLabels = {digging:'&#129748; Digging',sowing:'&#127807; Sowing',greenhouse:'&#127968; Greenhouse',harvest:'&#129365; Harvest',planning:'&#128203; Planning'};
-    feed.innerHTML +=
-      '<div class="blog-post" id="post-'+post.id+'" data-tag="'+post.tag+'" data-title="'+post.title.toLowerCase()+'" data-excerpt="'+post.excerpt.toLowerCase()+'">'
-      + imgHtml
-      + '<div class="blog-post-body">'
-      + '<div class="blog-post-meta">'
-      + '<span class="blog-date">&#128197; '+formatDate(post.date)+'</span>'
-      + '<span class="blog-tag '+post.tag+'">'+(tagLabels[post.tag]||post.tag)+'</span>'
-      + '</div>'
-      + '<h3>'+post.title+'</h3>'
-      + '<p class="excerpt">'+post.excerpt+'</p>'
-      + '<div class="blog-full" id="full-'+post.id+'">'+post.full+'</div>'
-      + '<div class="blog-post-footer">'
-      + '<button class="read-more" onclick="toggleFull('+post.id+',this)">Read more &#8594;</button>'
-      + '<button class="read-more" style="color:#dc2626" onclick="deletePost('+post.id+')">&#128465; Delete</button>'
-      + '</div>'
-      + '</div></div>';
-  });
+    out += '<div class="blog-post">' + imgHtml +
+      '<div class="blog-post-body">' +
+      '<div class="blog-post-meta">' +
+      '<span class="blog-date">&#128197; ' + fmtDate(p.created_at) + '</span>' +
+      '<span class="blog-tag ' + tag + '">' + (TAG_LABELS[tag]||tag) + '</span>' +
+      '</div>' +
+      '<h3>' + p.title + '</h3>' +
+      '<p class="excerpt">' + summary + '</p>' +
+      '<div class="blog-full" id="bf' + p.id + '">' + fullHtml + '</div>' +
+      '<div class="blog-post-footer">' +
+      '<button class="read-more" onclick="toggleFull(' + p.id + ',this)">Read more &#8594;</button>' +
+      '<a href="' + p.html_url + '" target="_blank" class="read-more" style="color:#64748b;text-decoration:none;font-size:0.78rem;">View on GitHub &#8599;</a>' +
+      '</div></div></div>';
+  }
+  feed.innerHTML = out;
 }
 
 function toggleFull(id, btn) {
-  var el = document.getElementById('full-'+id);
+  var el = document.getElementById('bf' + id);
+  if (!el) return;
   var open = el.style.display === 'block';
   el.style.display = open ? 'none' : 'block';
-  btn.textContent = open ? 'Read more \u2192' : 'Show less \u2191';
+  btn.innerHTML = open ? 'Read more &#8594;' : 'Show less &#8593;';
 }
 
-function deletePost(id) {
-  if (!confirm('Delete this diary entry?')) return;
-  var posts = loadBlogPosts().filter(function(p){ return p.id !== id; });
-  savePosts(posts);
-  renderBlog(posts);
-}
-
-function filterBlog() { renderBlog(loadBlogPosts()); }
+function filterBlog() { fetchPosts(renderBlog); }
 
 function filterByTag(tag, btn) {
   activeTag = tag;
-  document.querySelectorAll('.tag-btn').forEach(function(b){ b.classList.remove('active'); });
-  btn.classList.add('active');
-  renderBlog(loadBlogPosts());
+  var btns = document.querySelectorAll('.tag-btn');
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+  if (btn) btn.classList.add('active');
+  fetchPosts(renderBlog);
 }
 
-function toggleBlogForm() {
-  var f = document.getElementById('blog-form');
-  f.classList.toggle('open');
-  if (f.classList.contains('open')) {
-    document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
-  }
-}
+// Dummy stubs so any stray old references don't crash
+function toggleBlogForm() {}
+function saveBlogEntry() {}
 
-function saveBlogEntry() {
-  var title = document.getElementById('f-title').value.trim();
-  var date = document.getElementById('f-date').value;
-  var tag = document.getElementById('f-tag').value;
-  var img = document.getElementById('f-img').value.trim();
-  var excerpt = document.getElementById('f-excerpt').value.trim();
-  var full = document.getElementById('f-full').value.trim();
-  if (!title || !date || !excerpt) { alert('Please fill in title, date and summary at minimum.'); return; }
-  var posts = loadBlogPosts();
-  var newId = Date.now();
-  posts.push({id:newId, date:date, title:title, tag:tag, img:img||'', excerpt:excerpt, full:'<p>'+full.split('\n\n').join('</p><p>')+'</p>'});
-  savePosts(posts);
-  document.getElementById('f-title').value='';
-  document.getElementById('f-img').value='';
-  document.getElementById('f-excerpt').value='';
-  document.getElementById('f-full').value='';
-  document.getElementById('blog-form').classList.remove('open');
-  renderBlog(posts);
-}
-
-renderBlog(loadBlogPosts());
-
+// Initial load
+fetchPosts(renderBlog);
 </script>
 </body>
 </html>
