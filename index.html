@@ -342,7 +342,14 @@ footer{text-align:center;padding:1.5rem;font-size:0.78rem;color:var(--muted);
 
 <footer>Dean's Allotment Planner &bull; Weather: Open-Meteo (free) &bull; Mansfield, Nottinghamshire</footer>
 
+<div id="js-error" style="display:none;background:#dc2626;color:#fff;padding:1rem;font-family:monospace;font-size:0.85rem;position:fixed;bottom:0;left:0;right:0;z-index:9999;white-space:pre-wrap;max-height:200px;overflow:auto;"></div>
 <script>
+window.onerror = function(msg, src, line, col, err) {
+  var d = document.getElementById('js-error');
+  if (d) { d.style.display='block'; d.textContent = 'JS ERROR line '+line+': '+msg; }
+  return false;
+};
+try {
 // ============================================================
 // CORE NAVIGATION - runs immediately, no dependencies
 // ============================================================
@@ -832,6 +839,10 @@ function saveEntry() {
   renderBlog(posts);
 }
 renderBlog(loadPosts());
+} catch(e) {
+  var d = document.getElementById('js-error');
+  if (d) { d.style.display='block'; d.textContent = 'FATAL ERROR: ' + e.message + ' (line: ' + (e.lineNumber||'?') + ')'; }
+}
 </script>
 </body>
 </html>
