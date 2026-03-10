@@ -1,0 +1,21 @@
+backend:
+  name: git-gateway
+  branch: main
+
+media_folder: "images/uploads"
+public_folder: "/images/uploads"
+
+collections:
+  - name: "blog"
+    label: "Allotment Blog"
+    folder: "_posts"
+    create: true
+    delete: true
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+    fields:
+      - { label: "Title",    name: "title",   widget: "string" }
+      - { label: "Date",     name: "date",    widget: "datetime", format: "YYYY-MM-DD", date_format: "DD/MM/YYYY", time_format: false }
+      - { label: "Category", name: "tag",     widget: "select", options: ["digging","sowing","greenhouse","harvest","planning"] }
+      - { label: "Summary",  name: "excerpt", widget: "text" }
+      - { label: "Photo URL (optional)", name: "img", widget: "string", required: false }
+      - { label: "Full Entry", name: "body",  widget: "markdown" }
