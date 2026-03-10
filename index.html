@@ -777,26 +777,30 @@ var POSTS_CACHE = null;
 
 function fetchPosts(callback) {
   if (POSTS_CACHE) { callback(POSTS_CACHE); return; }
-  // Fetch the directory listing via GitHub API
-  var apiUrl = 'https://api.github.com/repos/wallisonline/AllotmentPlanner/contents/_posts';
-  fetch(apiUrl)
-    .then(function(r){ return r.json(); })
-    .then(function(files) {
-      if (!Array.isArray(files)) throw new Error('Not an array');
-      var promises = files
-        .filter(function(f){ return f.name.endsWith('.md'); })
-        .map(function(f){ return fetch(f.download_url).then(function(r){ return r.text(); }); });
+  // Fetch manifest of post filenames from _posts/index.json
+  var base = 'https://raw.githubusercontent.com/wallisonline/AllotmentPlanner/main/';
+  fetch(base + '_posts/index.json?t=' + Date.now())
+    .then(function(r){
+      if (!r.ok) throw new Error('No manifest');
+      return r.json();
+    })
+    .then(function(filenames) {
+      var promises = filenames.map(function(name){
+        return fetch(base + '_posts/' + name).then(function(r){ return r.text(); });
+      });
       return Promise.all(promises);
     })
     .then(function(raws) {
-      var posts = raws.map(function(raw, i){ return parseFrontmatter(raw); });
+      var posts = raws.map(function(raw){ return parseFrontmatter(raw); });
       posts.sort(function(a,b){ return b.date.localeCompare(a.date); });
       POSTS_CACHE = posts;
       callback(posts);
     })
-    .catch(function() {
-      // Fallback: show helpful message
+    .catch(function(err) {
+      console.warn('Blog fetch failed:', err);
       POSTS_CACHE = [];
+      var feed = document.getElementById('blog-feed');
+      if(feed) feed.innerHTML = '<div class="no-posts">&#127807; Blog posts are loading — if this persists, check that <strong>_posts/index.json</strong> exists in your GitHub repo.<br><br><small>Error: ' + err.message + '</small></div>';
       callback([]);
     });
 }
@@ -833,7 +837,7 @@ function renderBlog(posts) {
       + '<div class="blog-full" id="full-'+idx+'">'+post.body+'</div>'
       + '<div class="blog-post-footer">'
       + '<button class="read-more" onclick="toggleFull('+idx+',this)">Read more &#8594;</button>'
-      + '<a href="/admin/#/collections/blog" class="read-more" style="color:#0369a1;text-decoration:none;" target="_blank">&#9998; Edit in Admin</a>'
+      + '<a href="/admin/" class="read-more" style="color:#0369a1;text-decoration:none;" target="_blank">&#9998; Admin</a>'
       + '</div>'
       + '</div></div>';
   });
