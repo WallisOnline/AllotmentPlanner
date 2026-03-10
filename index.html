@@ -870,44 +870,6 @@ function toggleBlogForm() {
 // Initial load
 fetchPosts(renderBlog);
 
- }
-
-function filterByTag(tag, btn) {
-  activeTag = tag;
-  document.querySelectorAll('.tag-btn').forEach(function(b){ b.classList.remove('active'); });
-  btn.classList.add('active');
-  renderBlog(loadBlogPosts());
-}
-
-function toggleBlogForm() {
-  var f = document.getElementById('blog-form');
-  f.classList.toggle('open');
-  if (f.classList.contains('open')) {
-    document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
-  }
-}
-
-function saveBlogEntry() {
-  var title = document.getElementById('f-title').value.trim();
-  var date = document.getElementById('f-date').value;
-  var tag = document.getElementById('f-tag').value;
-  var img = document.getElementById('f-img').value.trim();
-  var excerpt = document.getElementById('f-excerpt').value.trim();
-  var full = document.getElementById('f-full').value.trim();
-  if (!title || !date || !excerpt) { alert('Please fill in title, date and summary at minimum.'); return; }
-  var posts = loadBlogPosts();
-  var newId = Date.now();
-  posts.push({id:newId, date:date, title:title, tag:tag, img:img||'', excerpt:excerpt, full:'<p>'+full.split('\n\n').join('</p><p>')+'</p>'});
-  savePosts(posts);
-  document.getElementById('f-title').value='';
-  document.getElementById('f-img').value='';
-  document.getElementById('f-excerpt').value='';
-  document.getElementById('f-full').value='';
-  document.getElementById('blog-form').classList.remove('open');
-  renderBlog(posts);
-}
-
-renderBlog(loadBlogPosts());
 
 </script>
 
